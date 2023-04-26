@@ -204,3 +204,83 @@ VALUES ((SELECT $node_id FROM Developer WHERE ID = 11), (SELECT $node_id FROM Co
 
 SELECT *
 FROM DeveloperCommentEdge
+
+
+--запрос где главный разработчик - Низюк
+SELECT Developer1.name
+ , Developer2.name AS [Developer Collaboration name]
+FROM Developer AS Developer1
+ , DeveloperCollaborationEdge
+ , Developer AS Developer2
+WHERE MATCH(Developer1-(DeveloperCollaborationEdge)->Developer2) AND Developer1.name = N'Низюк Иван Петрович';
+
+--все, кто не работает с Низюк
+SELECT DISTINCT Developer2.name
+FROM Developer AS Developer1
+ , DeveloperCollaborationEdge
+ , Developer AS Developer2
+WHERE MATCH(Developer1-(DeveloperCollaborationEdge)->Developer2) AND Developer1.name <> N'Низюк Иван Петрович' AND Developer2.name <> N'Низюк Иван Петрович';
+
+
+--проекты Смирновой
+SELECT Developer1.name as[Developer]
+ , Task2.TaskName AS [Task]
+FROM Developer AS Developer1
+ , DeveloperTaskEdge
+ , Task AS Task2
+WHERE MATCH(Developer1-(DeveloperTaskEdge)->Task2)  AND Developer1.name =N'Смирнова Анастасия Андреевна';
+
+--иерархия в разработке проекта Смирновой
+SELECT Developer1.name + N' работает над проектом с ' + Developer2.name AS Level1
+ , Developer2.name + N' работает над проектом с  ' + Developer3.name AS Level2
+FROM Developer AS Developer1
+ , DeveloperCollaborationEdge AS DeveloperCollaboration1
+ , Developer AS Developer2
+ , DeveloperCollaborationEdge AS DeveloperCollaboration2
+ , Developer AS Developer3
+WHERE MATCH(Developer1-(DeveloperCollaboration1)->Developer2-(DeveloperCollaboration2)->Developer3)
+ AND Developer1.name =N'Смирнова Анастасия Андреевна';
+
+
+
+-- запрос показывающий разработчиков, задачи и комментарии 
+SELECT Developer1.name as[Developer],Task2.TaskName AS [Task]
+ , Comment2.CommentText AS [Comment]
+FROM Developer AS Developer1
+ , DeveloperTaskEdge
+ , Task as Task2
+ , CommentTaskEdge
+ , Comment AS Comment2
+WHERE MATCH(Developer1-(DeveloperTaskEdge)->Task2<-(CommentTaskEdge)-Comment2) ;
+
+
+
+--SHORTEST_PATH1
+SELECT Developer1.name AS DeveloperName
+ , STRING_AGG(Developer2.name, '->') WITHIN GROUP (GRAPH PATH) AS
+[Collab]
+FROM Developer AS Developer1
+ , DeveloperCollaborationEdge FOR PATH AS dev
+ , Developer FOR PATH AS Developer2
+WHERE MATCH(SHORTEST_PATH(Developer1(-(dev)->Developer2)+))
+ AND Developer1.name = N'Смирнова Анастасия Андреевна';
+
+ --SHORTEST_PATH2
+DECLARE @DeveloperFrom AS NVARCHAR(50) =N'Смирнова Анастасия Андреевна';
+DECLARE @DeveloperTo AS NVARCHAR(50) =  N'Белов Артем Викторович';
+WITH T1 AS
+(
+SELECT Developer1.name AS DeveloperName
+ , STRING_AGG(Developer2.name, '->') WITHIN GROUP (GRAPH PATH)
+AS Friends
+ , LAST_VALUE(Developer2.name) WITHIN GROUP (GRAPH PATH) AS
+LastNode
+FROM Developer AS Developer1
+ , DeveloperCollaborationEdge FOR PATH AS fo
+ , Developer FOR PATH AS Developer2
+WHERE MATCH(SHORTEST_PATH(Developer1(-(fo)->Developer2)+))
+ AND Developer1.name = @DeveloperFrom
+)
+SELECT DeveloperName, Friends
+FROM T1
+WHERE LastNode = @DeveloperTo;
